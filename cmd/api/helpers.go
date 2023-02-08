@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -49,23 +50,42 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 	return nil
 }
 
-var (
-	ErrBadRequest = "bad form json"
-)
+// readJSON() parse the json body into destination data which is a pointer of a variables
+func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	var maxBytes int64 = 1_048_576
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
 
-// readJSON() takes the request body and parsing it into a provided destination variable
-func (app *application) readJSON(r *http.Request, dst any) error {
-	err := json.NewDecoder(r.Body).Decode(dst)
+	// Init decoder and disable unknown fields
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+
+	// Decode the request body into the target destination.
+	err := dec.Decode(dst)
 	if err != nil {
 		// If there is an error during decoding, start the triage...
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 		var invalidUnmarshalError *json.InvalidUnmarshalError
+		var maxBytesError *http.MaxBytesError
+
 		switch {
+		// Use the errors.As() function to check whether the error has the type
+		// *json.SyntaxError. If it does, then return a plain-english error message
+		// which includes the location of the problem.
 		case errors.As(err, &syntaxError):
 			return fmt.Errorf("body contains badly-formed JSON (at character %d)", syntaxError.Offset)
-		case errors.As(err, &unmarshalTypeError):
-			return fmt.Errorf("body contains badly-formed JSON")
+
+		// In some circumstances Decode() may also return an io.ErrUnexpectedEOF error
+		// for syntax errors in the JSON. So we check for this using errors.Is() and
+		// return a generic error message. There is an open issue regarding this at
+		// https://github.com/golang/go/issues/25956.
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			return errors.New("body contains badly-formed JSON")
+
+		// Likewise, catch any *json.UnmarshalTypeError errors. These occur when the
+		// JSON value is the wrong type for the target destination. If the error relates
+		// to a specific field, then we include that in our error message to make it
+		// easier for the client to debug.
 		case errors.As(err, &unmarshalTypeError):
 			if unmarshalTypeError.Field != "" {
 				return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
@@ -76,6 +96,13 @@ func (app *application) readJSON(r *http.Request, dst any) error {
 		// instead.
 		case errors.Is(err, io.EOF):
 			return errors.New("body must not be empty")
+
+		case errors.As(err, &maxBytesError):
+			return fmt.Errorf("body must not be larger than %d bytes", maxBytesError.Limit)
+
+		case strings.HasPrefix(err.Error(), "json: unknown field "):
+			fieldName := strings.TrimPrefix(err.Error(), "json: unknown field ")
+			return fmt.Errorf("body contains unknown key %s", fieldName)
 
 		// A json.InvalidUnmarshalError error will be returned if we pass something
 		// that is not a non-nil pointer to Decode(). We catch this and panic,
@@ -89,6 +116,11 @@ func (app *application) readJSON(r *http.Request, dst any) error {
 		default:
 			return err
 		}
+	}
+
+	err = dec.Decode(&struct{}{})
+	if err != io.EOF {
+		return errors.New("body must only contain a single JSON value")
 	}
 
 	return nil

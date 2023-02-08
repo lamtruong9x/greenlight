@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/lamtruong9x/greenlight/internal/data"
 )
 
@@ -35,5 +35,36 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "create a new movie")
+	var input struct {
+		Title   string       `json:"title" validate:"required"`
+		Year    int32        `json:"year" validate:"required"`
+		Runtime data.Runtime `json:"runtime" validate:"required"`
+		Genres  []string     `json:"genres" validate:"required"`
+	}
+
+	// read json
+	err := app.readJSON(w, r, &input)
+	if err != nil {
+		app.badRequestResponse(w, r, err)
+		return
+	}
+
+	movie := &data.Movie{
+		Title:   input.Title,
+		Year:    input.Year,
+		Runtime: input.Runtime,
+		Genres:  input.Genres,
+	}
+
+	err = app.validator.Struct(movie)
+	if err != nil {
+		app.failedValidationResponse(w, r, err.(validator.ValidationErrors))
+		return
+	}
+
+	err = app.writeJSON(w, http.StatusOK, envelope{"movie": input}, nil)
+	if err != nil {
+		app.serverErrorResponse(w, r, err)
+		return
+	}
 }

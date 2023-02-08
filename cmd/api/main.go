@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/go-playground/validator/v10"
+	myValidator "github.com/lamtruong9x/greenlight/internal/validator"
 )
 
 const version = "1.0.0"
@@ -17,8 +20,9 @@ type config struct {
 }
 
 type application struct {
-	config config
-	logger *log.Logger
+	config    config
+	logger    *log.Logger
+	validator *validator.Validate
 }
 
 func main() {
@@ -33,10 +37,17 @@ func main() {
 	// prefixed with the current date and time.
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
+	// Initialize a new validator
+	val, err := myValidator.New()
+	if err != nil {
+		panic(err)
+	}
+
 	// Declare an instance of the application struct
 	app := &application{
-		config: cfg,
-		logger: logger,
+		config:    cfg,
+		logger:    logger,
+		validator: val,
 	}
 
 	// Declare a new servemux
