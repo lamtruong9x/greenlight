@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"github.com/go-playground/validator/v10"
 )
 
 // The logError() method is a generic helper for logging an error message.
@@ -53,5 +55,10 @@ func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Reques
 }
 
 func (app *application) failedValidationResponse(w http.ResponseWriter, r *http.Request, errors error) {
-	app.errorResponse(w, r, http.StatusUnprocessableEntity, errors.Error())
+	valErrs := errors.(validator.ValidationErrors)
+	errStrings := map[string]string{}
+	for i := range valErrs {
+		errStrings[valErrs[i].Field()] = valErrs[i].ActualTag()
+	}
+	app.errorResponse(w, r, http.StatusUnprocessableEntity, errStrings)
 }

@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/lamtruong9x/greenlight/internal/data"
 )
 
@@ -58,7 +57,7 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.validator.Struct(movie)
 	if err != nil {
-		app.failedValidationResponse(w, r, err.(validator.ValidationErrors))
+		app.failedValidationResponse(w, r, err)
 		return
 	}
 
