@@ -27,7 +27,7 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 
 type envelope map[string]any
 
-// This function takes the destination
+// writeJSON() takes the destination
 // http.ResponseWriter, the HTTP status code to send, the data to encode to JSON, and a
 // header map containing any additional HTTP headers we want to include in the response.
 func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
@@ -91,7 +91,6 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 				return fmt.Errorf("body contains incorrect JSON type for field %q", unmarshalTypeError.Field)
 			}
 			return fmt.Errorf("body contains incorrect JSON type (at character %d)", unmarshalTypeError.Offset)
-
 		// An io.EOF error will be returned by Decode() if the request body is empty. We
 		// check for this with errors.Is() and return a plain-english error message
 		// instead.
